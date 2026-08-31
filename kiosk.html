@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>仁大補習班 - 官方出勤刷卡機</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 15px;
+      background-color: #1e293b;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .header { text-align: center; margin-bottom: 12px; }
+    .header h1 { margin: 0; font-size: 26px; color: #f8fafc; }
+    .clock { font-size: 18px; color: #94a3b8; margin-top: 4px; }
+    
+    /* 模式切換按鈕 (大按鈕適合平板觸控) */
+    .mode-switch {
+      display: flex;
+      gap: 15px;
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 15px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 14px;
+      font-size: 20px;
+      font-weight: bold;
+      border: 3px solid transparent;
+      border-radius: 12px;
+      cursor: pointer;
+      color: white;
+      transition: all 0.2s;
+    }
+    .btn-in { background-color: #166534; opacity: 0.5; }
+    .btn-out { background-color: #991b1b; opacity: 0.5; }
+    .mode-btn.active {
+      opacity: 1;
+      border-color: #fff;
+      transform: scale(1.03);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+    .btn-in.active { background-color: #22c55e; }
+    .btn-out.active { background-color: #ef4444; }
+
+    /* 相機畫面容器 */
+    .scanner-box {
+      width: 100%;
+      max-width: 480px;
+      background: #0f172a;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid #334155;
+      position: relative;
+    }
+    #reader { width: 100%; }
+
+    /* 即時打卡反饋卡片 */
+    #status-card {
+      width: 100%;
+      max-width: 480px;
+      margin-top: 15px;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 20px;
+      font-weight: bold;
+      text-align: center;
+      display: none;
+      white-space: pre-line;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    /* 備援手動學號按鈕 */
+    .manual-link {
+      margin-top: 15px;
+      color: #94a3b8;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>🏫 仁大官方出勤刷卡機</h1>
+    <div id="clock" class="clock">--:--:--</div>
+  </div>
+
+  <!-- 🟢 到班 / 🔴 離班 切換鈕 -->
+  <div class="mode-switch">
+    <button id="btn-in" class="mode-btn btn-in active" onclick="setMode('到班')">🟢 到班打卡</button>
+    <button id="btn-out" class="mode-btn btn-out" onclick="setMode('離班')">🔴 離班打卡</button>
+  </div>
+
+  <!-- 鏡頭即時掃描區 -->
+  <div class="scanner-box">
+    <div id="reader"></div>
+  </div>
+
+  <!-- 打卡結果回饋 -->
+  <div id="status-card"></div>
+
+  <div class="manual-link" onclick="manualInputPrompt()">⌨️ 忘帶卡片？點此手動輸入學號打卡</div>
+
+  <script>
+    // 🎯 請換成你的私人 GAS Web App 網址
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwgZNQBhBM6W2hjogTcAJZpY1MQgzFKGRjvW_CJD1wLnd4KH43F3E6Q99hTJL_2B2hbaA/exec";
+
+    let currentMode = "到班";
+    let isProcessing = false;
+    let html5QrCode = null;
+
+    // 時鐘更新
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById("clock").innerText = now.toLocaleString("zh-TW", { hour12: false });
+    }, 1000);
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById("btn-in").classList.toggle("active", mode === "到班");
+      document.getElementById("btn-out").classList.toggle("active", mode === "離班");
+      speak(mode === "到班" ? "已切換為到班模式" : "已切換為離班模式");
+    }
+
+    // 啟動相機掃描
+    function startCamera() {
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start(
+        { facingMode: "user" }, // 預設使用平板前鏡頭（若外接後鏡頭可改 "environment"）
+        { fps: 10, qrbox: { width: 260, height: 260 } },
+        (decodedText) => {
+          if (!isProcessing) {
+            handleScanSuccess(decodedText);
+          }
+        },
+        (errorMessage) => {}
+      ).catch(err => {
+        // 如果前鏡頭失敗，嘗試後鏡頭
+        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 260 } }, handleScanSuccess, () => {});
+      });
+    }
+
+    function handleScanSuccess(studentId) {
+      isProcessing = true;
+      showCard("⏳ 打卡辨識中...", "#334155", "#fff");
+      playBeep();
+
+      fetch(GAS_API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "kiosk_checkin",
+          studentId: studentId.trim(),
+          checkType: currentMode
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "success") {
+          showCard(data.message, "#166534", "#fff");
+          speak(data.studentName + " " + data.checkType + "成功");
+        } else {
+          showCard(data.message, "#991b1b", "#fff");
+          speak("打卡失敗");
+        }
+        // 2 秒後重置防重複刷卡鎖
+        setTimeout(() => {
+          hideCard();
+          isProcessing = false;
+        }, 2200);
+      })
+      .catch(err => {
+        showCard("❌ 網路連線異常", "#991b1b", "#fff");
+        setTimeout(() => { isProcessing = false; }, 2500);
+      });
+    }
+
+    // 備援：忘記帶卡手動打卡
+    function manualInputPrompt() {
+      const inputId = prompt("請輸入學號：");
+      if (inputId) {
+        handleScanSuccess(inputId);
+      }
+    }
+
+    function showCard(text, bg, color) {
+      const card = document.getElementById("status-card");
+      card.innerText = text;
+      card.style.backgroundColor = bg;
+      card.style.color = color;
+      card.style.display = "block";
+    }
+
+    function hideCard() {
+      document.getElementById("status-card").style.display = "none";
+    }
+
+    // 嗶一聲提示音
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } catch(e) {}
+    }
+
+    // 語音播報學生姓名
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-TW';
+        u.rate = 1.1;
+        window.speechSynthesis.speak(u);
+      }
+    }
+
+    window.onload = startCamera;
+  </script>
+</body>
+</html>
