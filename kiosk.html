@@ -151,8 +151,23 @@
       });
     }
 
+    // 紀錄最後一次掃描的學號與時間
+    let lastScannedId = "";
+    let lastScanTime = 0;
+
     function handleScanSuccess(studentId) {
+      const nowTime = Date.now();
+      const cleanId = studentId.trim();
+
+      // 前端防呆：同一個學號 5 秒內再次晃到鏡頭直接忽略
+      if (cleanId === lastScannedId && (nowTime - lastScanTime) < 5000) {
+        return;
+      }
+
       isProcessing = true;
+      lastScannedId = cleanId;
+      lastScanTime = nowTime;
+
       showCard("⏳ 打卡辨識中...", "#334155", "#fff");
       playBeep();
 
@@ -160,7 +175,7 @@
         method: "POST",
         body: JSON.stringify({
           action: "kiosk_checkin",
-          studentId: studentId.trim(),
+          studentId: cleanId,
           checkType: currentMode
         })
       })
@@ -169,19 +184,23 @@
         if (data.status === "success") {
           showCard(data.message, "#166534", "#fff");
           speak(data.studentName + " " + data.checkType + "成功");
+        } else if (data.status === "duplicate") {
+          showCard(data.message, "#d97706", "#fff"); // 橘黃色提示重複
+          speak(data.studentName + " 已打卡過");
         } else {
           showCard(data.message, "#991b1b", "#fff");
           speak("打卡失敗");
         }
-        // 2 秒後重置防重複刷卡鎖
+
+        // 3 秒後重置畫面防重複鎖
         setTimeout(() => {
           hideCard();
           isProcessing = false;
-        }, 2200);
+        }, 3000);
       })
       .catch(err => {
         showCard("❌ 網路連線異常", "#991b1b", "#fff");
-        setTimeout(() => { isProcessing = false; }, 2500);
+        setTimeout(() => { isProcessing = false; }, 3000);
       });
     }
 
