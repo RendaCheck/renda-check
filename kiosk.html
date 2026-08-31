@@ -192,11 +192,11 @@
           speak("打卡失敗");
         }
 
-        // 3 秒後重置畫面防重複鎖
+        // 1.5 秒後重置畫面防重複鎖
         setTimeout(() => {
           hideCard();
           isProcessing = false;
-        }, 3000);
+        }, 1500);
       })
       .catch(err => {
         showCard("❌ 網路連線異常", "#991b1b", "#fff");
