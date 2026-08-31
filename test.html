@@ -55,7 +55,7 @@
     <h2>🏫 仁大出勤打卡</h2>
     <p id="user-display">正在連線至 LINE...</p>
     
-    <button id="scan-btn" class="btn" style="display:none;" onclick="triggerLineNativeScan()">📷 開啟 LINE 原生相機掃碼</button>
+    <button id="scan-btn" class="btn" style="display:none;" onclick="triggerLineNativeScan()">📷 開啟相機掃碼</button>
     <div id="result-box" class="status-msg"></div>
   </div>
 
@@ -91,7 +91,7 @@
         return;
       }
 
-      showStatus("正在啟動 LINE 掃碼相機...", "#e3f2fd", "#1565c0");
+      showStatus("正在啟動相機...", "#e3f2fd", "#1565c0");
 
       liff.scanCodeV2()
         .then(result => {
