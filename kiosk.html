@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>仁大補習班 - 官方出勤刷卡機</title>
+  <title>仁大補習班 - 出勤刷卡機</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     * { box-sizing: border-box; }
@@ -18,22 +18,22 @@
       align-items: center;
       min-height: 100vh;
     }
-    .header { text-align: center; margin-bottom: 12px; }
-    .header h1 { margin: 0; font-size: 26px; color: #f8fafc; }
-    .clock { font-size: 18px; color: #94a3b8; margin-top: 4px; }
+    .header { text-align: center; margin-bottom: 10px; }
+    .header h1 { margin: 0; font-size: 24px; color: #f8fafc; }
+    .clock { font-size: 16px; color: #94a3b8; margin-top: 4px; }
     
-    /* 模式切換按鈕 (大按鈕適合平板觸控) */
+    /* 模式切換按鈕 */
     .mode-switch {
       display: flex;
-      gap: 15px;
+      gap: 12px;
       width: 100%;
-      max-width: 480px;
-      margin-bottom: 15px;
+      max-width: 460px;
+      margin-bottom: 10px;
     }
     .mode-btn {
       flex: 1;
-      padding: 14px;
-      font-size: 20px;
+      padding: 12px;
+      font-size: 18px;
       font-weight: bold;
       border: 3px solid transparent;
       border-radius: 12px;
@@ -41,13 +41,13 @@
       color: white;
       transition: all 0.2s;
     }
-    .btn-in { background-color: #166534; opacity: 0.5; }
-    .btn-out { background-color: #991b1b; opacity: 0.5; }
+    .btn-in { background-color: #166534; opacity: 0.45; }
+    .btn-out { background-color: #991b1b; opacity: 0.45; }
     .mode-btn.active {
       opacity: 1;
       border-color: #fff;
-      transform: scale(1.03);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
     .btn-in.active { background-color: #22c55e; }
     .btn-out.active { background-color: #ef4444; }
@@ -55,7 +55,7 @@
     /* 相機畫面容器 */
     .scanner-box {
       width: 100%;
-      max-width: 480px;
+      max-width: 460px;
       background: #0f172a;
       border-radius: 16px;
       overflow: hidden;
@@ -64,14 +64,48 @@
     }
     #reader { width: 100%; }
 
+    /* 鏡頭控制列 */
+    .camera-controls {
+      width: 100%;
+      max-width: 460px;
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: center;
+    }
+    .camera-select {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-size: 14px;
+      outline: none;
+    }
+    .flip-btn {
+      padding: 8px 14px;
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .flip-btn:hover { background-color: #2563eb; }
+
     /* 即時打卡反饋卡片 */
     #status-card {
       width: 100%;
-      max-width: 480px;
-      margin-top: 15px;
-      padding: 16px;
+      max-width: 460px;
+      margin-top: 12px;
+      padding: 14px;
       border-radius: 12px;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       text-align: center;
       display: none;
@@ -79,20 +113,19 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     
-    /* 備援手動學號按鈕 */
     .manual-link {
-      margin-top: 15px;
+      margin-top: 14px;
       color: #94a3b8;
       text-decoration: underline;
       cursor: pointer;
-      font-size: 15px;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h1>🏫 仁大官方出勤刷卡機</h1>
+    <h1>🏫 仁大出勤刷卡機</h1>
     <div id="clock" class="clock">--:--:--</div>
   </div>
 
@@ -107,6 +140,14 @@
     <div id="reader"></div>
   </div>
 
+  <!-- 📷 鏡頭切換控制區 -->
+  <div class="camera-controls">
+    <select id="camera-select" class="camera-select" onchange="onCameraChange(this.value)">
+      <option value="">正在偵測相機設備...</option>
+    </select>
+    <button class="flip-btn" onclick="toggleCameraFacing()">🔄 翻轉鏡頭</button>
+  </div>
+
   <!-- 打卡結果回饋 -->
   <div id="status-card"></div>
 
@@ -119,6 +160,12 @@
     let currentMode = "到班";
     let isProcessing = false;
     let html5QrCode = null;
+    let currentFacingMode = "environment"; // 預設使用後鏡頭（拍條碼最清楚），可切 "user"
+    let availableCameras = [];
+    let currentCameraId = null;
+
+    let lastScannedId = "";
+    let lastScanTime = 0;
 
     // 時鐘更新
     setInterval(() => {
@@ -133,12 +180,46 @@
       speak(mode === "到班" ? "已切換為到班模式" : "已切換為離班模式");
     }
 
-    // 啟動相機掃描
-    function startCamera() {
+    // 初始化與列出所有相機設備
+    async function initCameras() {
       html5QrCode = new Html5Qrcode("reader");
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        if (devices && devices.length > 0) {
+          availableCameras = devices;
+          const select = document.getElementById("camera-select");
+          select.innerHTML = "";
+          devices.forEach((cam, idx) => {
+            const opt = document.createElement("option");
+            opt.value = cam.id;
+            opt.text = cam.label || `相機鏡頭 ${idx + 1}`;
+            select.appendChild(opt);
+          });
+
+          // 優先選擇後鏡頭或第一顆鏡頭
+          currentCameraId = devices[0].id;
+          startScanning({ deviceId: { exact: currentCameraId } });
+        } else {
+          // 若無列舉權限，使用 facingMode 備援啟動
+          startScanning({ facingMode: currentFacingMode });
+        }
+      } catch (e) {
+        console.warn("無法列舉相機列表，改用 facingMode 啟動", e);
+        startScanning({ facingMode: currentFacingMode });
+      }
+    }
+
+    // 啟動掃描器
+    function startScanning(cameraConfig) {
+      const config = {
+        fps: 12,
+        qrbox: { width: 260, height: 180 }, // 長寬比微調更適合 Barcode 條碼與 QR Code
+        aspectRatio: 1.333
+      };
+
       html5QrCode.start(
-        { facingMode: "user" }, // 預設使用平板前鏡頭（若外接後鏡頭可改 "environment"）
-        { fps: 10, qrbox: { width: 260, height: 260 } },
+        cameraConfig,
+        config,
         (decodedText) => {
           if (!isProcessing) {
             handleScanSuccess(decodedText);
@@ -146,20 +227,39 @@
         },
         (errorMessage) => {}
       ).catch(err => {
-        // 如果前鏡頭失敗，嘗試後鏡頭
-        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 260 } }, handleScanSuccess, () => {});
+        console.error("相機啟動失敗:", err);
       });
     }
 
-    // 紀錄最後一次掃描的學號與時間
-    let lastScannedId = "";
-    let lastScanTime = 0;
+    // 🔄 一鍵翻轉鏡頭 (前鏡頭 ⇋ 後鏡頭)
+    async function toggleCameraFacing() {
+      if (!html5QrCode) return;
+      try {
+        await html5QrCode.stop();
+        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+        startScanning({ facingMode: currentFacingMode });
+      } catch (err) {
+        console.error("切換鏡頭失敗:", err);
+      }
+    }
 
+    // 下拉選單手動切換特定相機
+    async function onCameraChange(cameraId) {
+      if (!html5QrCode || !cameraId) return;
+      try {
+        await html5QrCode.stop();
+        currentCameraId = cameraId;
+        startScanning({ deviceId: { exact: cameraId } });
+      } catch (err) {
+        console.error("切換相機失敗:", err);
+      }
+    }
+
+    // 掃描辨識處理 (防重複 + 防連刷)
     function handleScanSuccess(studentId) {
       const nowTime = Date.now();
       const cleanId = studentId.trim();
 
-      // 前端防呆：同一個學號 5 秒內再次晃到鏡頭直接忽略
       if (cleanId === lastScannedId && (nowTime - lastScanTime) < 5000) {
         return;
       }
@@ -185,26 +285,24 @@
           showCard(data.message, "#166534", "#fff");
           speak(data.studentName + " " + data.checkType + "成功");
         } else if (data.status === "duplicate") {
-          showCard(data.message, "#d97706", "#fff"); // 橘黃色提示重複
+          showCard(data.message, "#d97706", "#fff");
           speak(data.studentName + " 已打卡過");
         } else {
           showCard(data.message, "#991b1b", "#fff");
           speak("打卡失敗");
         }
 
-        // 1.5 秒後重置畫面防重複鎖
         setTimeout(() => {
           hideCard();
           isProcessing = false;
-        }, 1500);
+        }, 2500);
       })
       .catch(err => {
         showCard("❌ 網路連線異常", "#991b1b", "#fff");
-        setTimeout(() => { isProcessing = false; }, 3000);
+        setTimeout(() => { isProcessing = false; }, 2500);
       });
     }
 
-    // 備援：忘記帶卡手動打卡
     function manualInputPrompt() {
       const inputId = prompt("請輸入學號：");
       if (inputId) {
@@ -224,7 +322,6 @@
       document.getElementById("status-card").style.display = "none";
     }
 
-    // 嗶一聲提示音
     function playBeep() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -237,7 +334,6 @@
       } catch(e) {}
     }
 
-    // 語音播報學生姓名
     function speak(text) {
       if ('speechSynthesis' in window) {
         const u = new SpeechSynthesisUtterance(text);
@@ -247,7 +343,7 @@
       }
     }
 
-    window.onload = startCamera;
+    window.onload = initCameras;
   </script>
 </body>
 </html>
