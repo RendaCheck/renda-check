@@ -213,7 +213,7 @@
     function startScanning(cameraConfig) {
       const config = {
         fps: 20, // 提升幀率至 20fps，捕捉更流暢
-        qrbox: { width: 280, height: 140 }, // 長條形框線，引導學生橫向對齊
+        qrbox: { width: 320, height: 200 }, // 長條形框線，引導學生橫向對齊
         aspectRatio: 1.333,
         // 🎯 關鍵 1：鎖定只辨識 CODE_128（大幅降低誤判率與運算負擔）
         formatsToSupport: [ 
