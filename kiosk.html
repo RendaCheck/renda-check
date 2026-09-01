@@ -209,12 +209,21 @@
       }
     }
 
-    // 啟動掃描器
+    // 🚀 條碼專用高辨識率掃描設定
     function startScanning(cameraConfig) {
       const config = {
-        fps: 12,
-        qrbox: { width: 260, height: 180 }, // 長寬比微調更適合 Barcode 條碼與 QR Code
-        aspectRatio: 1.333
+        fps: 20, // 提升幀率至 20fps，捕捉更流暢
+        qrbox: { width: 280, height: 140 }, // 長條形框線，引導學生橫向對齊
+        aspectRatio: 1.333,
+        // 🎯 關鍵 1：鎖定只辨識 CODE_128（大幅降低誤判率與運算負擔）
+        formatsToSupport: [ 
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.QR_CODE 
+        ],
+        // 🎯 關鍵 2：開啟多角度與高精度演算法
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true // 使用瀏覽器硬體級條碼加速引擎
+        }
       };
 
       html5QrCode.start(
@@ -229,18 +238,6 @@
       ).catch(err => {
         console.error("相機啟動失敗:", err);
       });
-    }
-
-    // 🔄 一鍵翻轉鏡頭 (前鏡頭 ⇋ 後鏡頭)
-    async function toggleCameraFacing() {
-      if (!html5QrCode) return;
-      try {
-        await html5QrCode.stop();
-        currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
-        startScanning({ facingMode: currentFacingMode });
-      } catch (err) {
-        console.error("切換鏡頭失敗:", err);
-      }
     }
 
     // 下拉選單手動切換特定相機
