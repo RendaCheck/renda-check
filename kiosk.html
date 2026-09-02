@@ -52,7 +52,7 @@
     .btn-in.active { background-color: #22c55e; }
     .btn-out.active { background-color: #ef4444; }
 
-    /* 相機畫面容器 */
+    /* 相機畫面外層容器 */
     .scanner-box {
       width: 100%;
       max-width: 460px;
@@ -64,8 +64,10 @@
     }
     #reader { width: 100%; }
 
-    /* 水平鏡像翻轉樣式 (支援前鏡頭鏡像) */
-    .mirrored video {
+    /* 🎯 強制水平鏡像翻轉（直接作用於整層視窗與內部視訊畫面） */
+    #reader.mirrored,
+    #reader.mirrored video,
+    #reader.mirrored canvas {
       transform: scaleX(-1) !important;
       -webkit-transform: scaleX(-1) !important;
     }
@@ -164,7 +166,7 @@
     </select>
     <div class="btn-group">
       <button class="control-btn btn-flip" onclick="toggleCameraFacing()">🔄 前/後鏡頭</button>
-      <button class="control-btn btn-mirror" onclick="toggleMirror()">🪞 畫面鏡像翻轉</button>
+      <button class="control-btn btn-mirror" onclick="toggleMirror()">🪞 切換水平翻轉</button>
     </div>
   </div>
 
@@ -180,8 +182,8 @@
     let currentMode = "到班";
     let isProcessing = false;
     let html5QrCode = null;
-    let currentFacingMode = "user"; // 🎯 預設使用前鏡頭（學生面對螢幕）
-    let isMirrored = false;        // 畫面鏡像狀態
+    let currentFacingMode = "user"; // 預設使用前鏡頭
+    let isMirrored = true;         // 🎯 預設直接開啟水平翻轉（畫面與卡片字體為正）
     let availableCameras = [];
     let currentCameraId = null;
 
@@ -217,7 +219,7 @@
             select.appendChild(opt);
           });
 
-          // 預設先以 facingMode: "user" 啟動前鏡頭
+          // 預設以前鏡頭模式啟動
           startScanning({ facingMode: currentFacingMode });
         } else {
           startScanning({ facingMode: currentFacingMode });
@@ -232,7 +234,7 @@
     function startScanning(cameraConfig) {
       const config = {
         fps: 15,
-        qrbox: { width: 300, height: 180 }, // 針對橫條碼加寬取景框
+        qrbox: { width: 320, height: 200 }, // 加寬條碼掃描框
         aspectRatio: 1.333
       };
 
@@ -258,22 +260,29 @@
       try {
         await html5QrCode.stop();
         currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+        // 若切換到後鏡頭通常不需鏡像翻轉，前鏡頭則預設開啟鏡像
+        isMirrored = (currentFacingMode === "user");
         startScanning({ facingMode: currentFacingMode });
       } catch (err) {
         console.error("切換鏡頭失敗:", err);
       }
     }
 
-    // 🪞 畫面左右鏡像切換
+    // 🪞 手動切換水平翻轉狀態
     function toggleMirror() {
       isMirrored = !isMirrored;
       applyMirrorState();
+      speak(isMirrored ? "已開啟鏡像" : "已關閉鏡像");
     }
 
     function applyMirrorState() {
-      const readerElement = document.getElementById("reader");
-      if (readerElement) {
-        readerElement.classList.toggle("mirrored", isMirrored);
+      const readerBox = document.getElementById("reader");
+      if (!readerBox) return;
+
+      if (isMirrored) {
+        readerBox.classList.add("mirrored");
+      } else {
+        readerBox.classList.remove("mirrored");
       }
     }
 
