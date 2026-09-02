@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>仁大補習班 - 出勤刷卡機</title>
+  <title>仁大補習班 - 官方出勤刷卡機</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     * { box-sizing: border-box; }
@@ -64,17 +64,24 @@
     }
     #reader { width: 100%; }
 
+    /* 水平鏡像翻轉樣式 (支援前鏡頭鏡像) */
+    .mirrored video {
+      transform: scaleX(-1) !important;
+      -webkit-transform: scaleX(-1) !important;
+    }
+
     /* 鏡頭控制列 */
     .camera-controls {
       width: 100%;
       max-width: 460px;
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 10px;
       align-items: center;
     }
     .camera-select {
-      flex: 1;
+      flex: 1 1 100%;
       padding: 8px 10px;
       border-radius: 8px;
       border: 1px solid #475569;
@@ -83,9 +90,14 @@
       font-size: 14px;
       outline: none;
     }
-    .flip-btn {
-      padding: 8px 14px;
-      background-color: #3b82f6;
+    .btn-group {
+      display: flex;
+      width: 100%;
+      gap: 8px;
+    }
+    .control-btn {
+      flex: 1;
+      padding: 9px 12px;
       color: white;
       border: none;
       border-radius: 8px;
@@ -94,9 +106,14 @@
       font-weight: bold;
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 4px;
+      transition: background-color 0.2s;
     }
-    .flip-btn:hover { background-color: #2563eb; }
+    .btn-flip { background-color: #3b82f6; }
+    .btn-flip:hover { background-color: #2563eb; }
+    .btn-mirror { background-color: #475569; }
+    .btn-mirror:hover { background-color: #334155; }
 
     /* 即時打卡反饋卡片 */
     #status-card {
@@ -125,7 +142,7 @@
 <body>
 
   <div class="header">
-    <h1>🏫 仁大出勤刷卡機</h1>
+    <h1>🏫 仁大官方出勤刷卡機</h1>
     <div id="clock" class="clock">--:--:--</div>
   </div>
 
@@ -140,12 +157,15 @@
     <div id="reader"></div>
   </div>
 
-  <!-- 📷 鏡頭切換控制區 -->
+  <!-- 📷 鏡頭控制區 -->
   <div class="camera-controls">
     <select id="camera-select" class="camera-select" onchange="onCameraChange(this.value)">
       <option value="">正在偵測相機設備...</option>
     </select>
-    <button class="flip-btn" onclick="toggleCameraFacing()">🔄 翻轉鏡頭</button>
+    <div class="btn-group">
+      <button class="control-btn btn-flip" onclick="toggleCameraFacing()">🔄 前/後鏡頭</button>
+      <button class="control-btn btn-mirror" onclick="toggleMirror()">🪞 畫面鏡像翻轉</button>
+    </div>
   </div>
 
   <!-- 打卡結果回饋 -->
@@ -155,19 +175,20 @@
 
   <script>
     // 🎯 請換成你的私人 GAS Web App 網址
-    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwgZNQBhBM6W2hjogTcAJZpY1MQgzFKGRjvW_CJD1wLnd4KH43F3E6Q99hTJL_2B2hbaA/exec";
+    const GAS_API_URL = "YOUR_GAS_WEB_APP_URL";
 
     let currentMode = "到班";
     let isProcessing = false;
     let html5QrCode = null;
-    let currentFacingMode = "environment"; // 預設使用後鏡頭（拍條碼最清楚），可切 "user"
+    let currentFacingMode = "user"; // 🎯 預設使用前鏡頭（學生面對螢幕）
+    let isMirrored = false;        // 畫面鏡像狀態
     let availableCameras = [];
     let currentCameraId = null;
 
     let lastScannedId = "";
     let lastScanTime = 0;
 
-    // 時鐘更新
+    // 時鐘即時更新
     setInterval(() => {
       const now = new Date();
       document.getElementById("clock").innerText = now.toLocaleString("zh-TW", { hour12: false });
@@ -180,7 +201,7 @@
       speak(mode === "到班" ? "已切換為到班模式" : "已切換為離班模式");
     }
 
-    // 初始化與列出所有相機設備
+    // 初始化與列出設備
     async function initCameras() {
       html5QrCode = new Html5Qrcode("reader");
       try {
@@ -196,11 +217,9 @@
             select.appendChild(opt);
           });
 
-          // 優先選擇後鏡頭或第一顆鏡頭
-          currentCameraId = devices[0].id;
-          startScanning({ deviceId: { exact: currentCameraId } });
+          // 預設先以 facingMode: "user" 啟動前鏡頭
+          startScanning({ facingMode: currentFacingMode });
         } else {
-          // 若無列舉權限，使用 facingMode 備援啟動
           startScanning({ facingMode: currentFacingMode });
         }
       } catch (e) {
@@ -209,21 +228,12 @@
       }
     }
 
-    // 🚀 條碼專用高辨識率掃描設定
+    // 啟動掃描器
     function startScanning(cameraConfig) {
       const config = {
-        fps: 20, // 提升幀率至 20fps，捕捉更流暢
-        qrbox: { width: 320, height: 200 }, // 長條形框線，引導學生橫向對齊
-        aspectRatio: 1.333,
-        // 🎯 關鍵 1：鎖定只辨識 CODE_128（大幅降低誤判率與運算負擔）
-        formatsToSupport: [ 
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.QR_CODE 
-        ],
-        // 🎯 關鍵 2：開啟多角度與高精度演算法
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true // 使用瀏覽器硬體級條碼加速引擎
-        }
+        fps: 15,
+        qrbox: { width: 300, height: 180 }, // 針對橫條碼加寬取景框
+        aspectRatio: 1.333
       };
 
       html5QrCode.start(
@@ -235,12 +245,39 @@
           }
         },
         (errorMessage) => {}
-      ).catch(err => {
+      ).then(() => {
+        applyMirrorState();
+      }).catch(err => {
         console.error("相機啟動失敗:", err);
       });
     }
 
-    // 下拉選單手動切換特定相機
+    // 🔄 前後鏡頭切換
+    async function toggleCameraFacing() {
+      if (!html5QrCode) return;
+      try {
+        await html5QrCode.stop();
+        currentFacingMode = (currentFacingMode === "user") ? "environment" : "user";
+        startScanning({ facingMode: currentFacingMode });
+      } catch (err) {
+        console.error("切換鏡頭失敗:", err);
+      }
+    }
+
+    // 🪞 畫面左右鏡像切換
+    function toggleMirror() {
+      isMirrored = !isMirrored;
+      applyMirrorState();
+    }
+
+    function applyMirrorState() {
+      const readerElement = document.getElementById("reader");
+      if (readerElement) {
+        readerElement.classList.toggle("mirrored", isMirrored);
+      }
+    }
+
+    // 下拉選單手動切換指定相機
     async function onCameraChange(cameraId) {
       if (!html5QrCode || !cameraId) return;
       try {
@@ -252,11 +289,12 @@
       }
     }
 
-    // 掃描辨識處理 (防重複 + 防連刷)
+    // 掃描辨識處理
     function handleScanSuccess(studentId) {
       const nowTime = Date.now();
       const cleanId = studentId.trim();
 
+      // 防連續重複刷卡（5 秒內同卡號不觸發）
       if (cleanId === lastScannedId && (nowTime - lastScanTime) < 5000) {
         return;
       }
