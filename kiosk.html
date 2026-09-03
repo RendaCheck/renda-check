@@ -52,18 +52,32 @@
     .btn-in.active { background-color: #22c55e; }
     .btn-out.active { background-color: #ef4444; }
 
-    /* 相機畫面外層容器 */
+   /* 🎯 視訊相機畫面外框容器（支援動態變色與發光效果） */
     .scanner-box {
       width: 100%;
       max-width: 460px;
       background: #0f172a;
-      border-radius: 16px;
+      border-radius: 20px;
       overflow: hidden;
-      border: 2px solid #334155;
       position: relative;
+      border: 5px solid #22c55e; /* 預設到班綠框 */
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.45);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
-    #reader { width: 100%; }
+    
+    /* 🟢 到班狀態外框 */
+    .scanner-box.mode-in {
+      border-color: #22c55e;
+      box-shadow: 0 0 22px rgba(34, 197, 94, 0.5);
+    }
 
+    /* 🔴 離班狀態外框 */
+    .scanner-box.mode-out {
+      border-color: #ef4444;
+      box-shadow: 0 0 22px rgba(239, 68, 68, 0.5);
+    }
+
+    #reader { width: 100%; }
     /* 🎯 強制水平鏡像翻轉（直接作用於整層視窗與內部視訊畫面） */
     #reader.mirrored,
     #reader.mirrored video,
