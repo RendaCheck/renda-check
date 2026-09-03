@@ -28,7 +28,7 @@
       gap: 12px;
       width: 100%;
       max-width: 460px;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
     .mode-btn {
       flex: 1;
@@ -39,7 +39,7 @@
       border-radius: 12px;
       cursor: pointer;
       color: white;
-      transition: all 0.2s;
+      transition: all 0.25s;
     }
     .btn-in { background-color: #166534; opacity: 0.45; }
     .btn-out { background-color: #991b1b; opacity: 0.45; }
@@ -52,7 +52,7 @@
     .btn-in.active { background-color: #22c55e; }
     .btn-out.active { background-color: #ef4444; }
 
-   /* 🎯 視訊相機畫面外框容器（支援動態變色與發光效果） */
+    /* 視訊相機畫面外框容器 (邊框顏色由 JavaScript 即時動態控制) */
     .scanner-box {
       width: 100%;
       max-width: 460px;
@@ -60,25 +60,11 @@
       border-radius: 20px;
       overflow: hidden;
       position: relative;
-      border: 5px solid #22c55e; /* 預設到班綠框 */
-      box-shadow: 0 0 20px rgba(34, 197, 94, 0.45);
-      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
     }
-    
-    /* 🟢 到班狀態外框 */
-    .scanner-box.mode-in {
-      border-color: #22c55e;
-      box-shadow: 0 0 22px rgba(34, 197, 94, 0.5);
-    }
-
-    /* 🔴 離班狀態外框 */
-    .scanner-box.mode-out {
-      border-color: #ef4444;
-      box-shadow: 0 0 22px rgba(239, 68, 68, 0.5);
-    }
-
     #reader { width: 100%; }
-    /* 🎯 強制水平鏡像翻轉（直接作用於整層視窗與內部視訊畫面） */
+
+    /* 水平鏡像翻轉 */
     #reader.mirrored,
     #reader.mirrored video,
     #reader.mirrored canvas {
@@ -93,7 +79,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 12px;
       align-items: center;
     }
     .camera-select {
@@ -157,23 +143,24 @@
 </head>
 <body>
 
+  <!-- 1. 標題與時鐘 -->
   <div class="header">
     <h1>🏫 仁大官方出勤刷卡機</h1>
     <div id="clock" class="clock">--:--:--</div>
   </div>
 
-  <!-- 🟢 到班 / 🔴 離班 切換鈕 -->
+  <!-- 2. 到班 / 離班 切換鈕 -->
   <div class="mode-switch">
     <button id="btn-in" class="mode-btn btn-in active" onclick="setMode('到班')">🟢 到班打卡</button>
     <button id="btn-out" class="mode-btn btn-out" onclick="setMode('離班')">🔴 離班打卡</button>
   </div>
 
-  <!-- 鏡頭即時掃描區 -->
-  <div class="scanner-box">
+  <!-- 🎯 3. 就放在這裡！相機即時掃描區外框 -->
+  <div id="scanner-box" class="scanner-box" style="border: 6px solid #22c55e; box-shadow: 0 0 25px rgba(34, 197, 94, 0.7);">
     <div id="reader"></div>
   </div>
 
-  <!-- 📷 鏡頭控制區 -->
+  <!-- 4. 鏡頭控制區 -->
   <div class="camera-controls">
     <select id="camera-select" class="camera-select" onchange="onCameraChange(this.value)">
       <option value="">正在偵測相機設備...</option>
@@ -210,10 +197,26 @@
       document.getElementById("clock").innerText = now.toLocaleString("zh-TW", { hour12: false });
     }, 1000);
 
-    function setMode(mode) {
+   function setMode(mode) {
       currentMode = mode;
+
+      // 1. 切換按鈕高亮
       document.getElementById("btn-in").classList.toggle("active", mode === "到班");
       document.getElementById("btn-out").classList.toggle("active", mode === "離班");
+
+      // 2. 🎯 強制直接改寫外框顏色（最高優先級，無任何快取或 CSS 覆蓋問題）
+      const box = document.getElementById("scanner-box");
+      if (box) {
+        if (mode === "到班") {
+          box.style.borderColor = "#22c55e";
+          box.style.boxShadow = "0 0 25px rgba(34, 197, 94, 0.7)";
+        } else {
+          box.style.borderColor = "#ef4444";
+          box.style.boxShadow = "0 0 25px rgba(239, 68, 68, 0.7)";
+        }
+      }
+
+      // 3. 語音提示
       speak(mode === "到班" ? "已切換為到班模式" : "已切換為離班模式");
     }
 
